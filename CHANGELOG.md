@@ -1,6 +1,16 @@
 # Miva IDE CHANGELOG
 
-## v1.38.1 (latest)
+## v1.39.0 (latest)
+
+* Improved performance of Miva Script symbol lookup.
+	* `Go to Symbol in Workspace` no longer re-reads every `.mv` file on each keystroke. Only new or changed files are parsed, and results are filtered by the search text and capped at 1000.
+	* Go to Definition and hover documentation for workspace symbols now use a name index instead of scanning every symbol.
+	* `node_modules` and `.git` folders are skipped when scanning the workspace.
+* Added the `mivaScript.workspaceSymbols.functionsOnly` setting to limit `Go to Symbol in Workspace` to `MvFUNCTION` names, excluding `MvASSIGN` and `MvASSIGNARRAY` variables.
+* Added the `mivaScript.workspaceSymbols.includeJavaScript` setting to include JavaScript function, method and class names from `.js` files in `Go to Symbol in Workspace`, and use them for Go to Definition in JavaScript files.
+	* Skips `.min.js` files. Results for `.js` files open in the editor are left to VS Code's built-in JavaScript support to avoid duplicates.
+
+## v1.38.1
 
 * Fixed bug where autocompletion within a flex instance template would fail if `list_type: text` was used within the matching flex.json file.
 * Fixed typeo for encode functions.
