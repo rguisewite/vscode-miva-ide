@@ -30,7 +30,7 @@ export function asyncSpawn (command: string, args?: readonly string[], options?:
 	});
 }
 
-export async function walk (dir: string, pathEnding: string): Promise<string[]> {
+export async function walk (dir: string, pathEnding: string, ignoredDirectoryNames: string[] = []): Promise<string[]> {
 	const parsedPathEnding = pathEnding.replace(/\//g, sep);
 	let files = await readdir(dir);
 
@@ -40,7 +40,11 @@ export async function walk (dir: string, pathEnding: string): Promise<string[]> 
 		const stats = await lstat(filePath);
 
 		if (stats.isDirectory()) {
-			return walk(filePath, pathEnding);
+			if (ignoredDirectoryNames.includes(file)) {
+				return;
+			}
+
+			return walk(filePath, pathEnding, ignoredDirectoryNames);
 		}
 		else if (stats.isFile() && (file.endsWith(parsedPathEnding) || filePath.endsWith(parsedPathEnding))) {
 			return filePath;

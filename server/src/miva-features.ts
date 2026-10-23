@@ -20,6 +20,7 @@ import {
 	MarkupContent,
 	Position,
 	Range,
+	SymbolInformation,
 	SymbolKind,
 	TextEdit
 } from 'vscode-languageserver';
@@ -113,7 +114,9 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 	});
 
 	// Lsk Symbols array
+	const MAX_WORKSPACE_SYMBOL_RESULTS = 1000;
 	let mivaScriptWorkspaceSymbols: SymbolInformationWithDocumentation[] = [];
+	let mivaScriptWorkspaceSymbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
 	let mivaScriptWorkspaceSymbolsLoading: boolean = false;
 
 	// Helper function for "variable" completion target list
@@ -710,14 +713,14 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 				await _createMivaScriptWorkspaceSymbols(workspace, settings);
 
 				return [
-					...documentSymbols,
-					...mivaScriptWorkspaceSymbols
+					...documentSymbols
+						.filter(( symbol ) => {
+							const nameLower: string = symbol?.name?.toLowerCase();
+							return nameLower === entity || nameLower === variable || nameLower === word;
+						}),
+					..._getMivaScriptWorkspaceSymbolsByNames( entity, variable, word )
 				]
-					?.filter(( symbol ) => {
-						const nameLower: string = symbol?.name?.toLowerCase();
-						return nameLower === entity || nameLower === variable || nameLower === word;
-					})
-					?.map( symbol => symbol.location );
+					.map( symbol => symbol.location );
 			},
 
 			async onHover ( document: TextDocument, position: Position, settings: Settings ) {
@@ -899,9 +902,9 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 				}
 
 				// Variable / Entity Symbol Hover Documentation
-				const symbols = [].concat( mivaScriptWorkspaceSymbols, documentSymbols );
 				const variable = getVariableAtOffset( line, position.character )?.toLowerCase();
 				const entity = getEntityAtOffset( line, position.character )?.toLowerCase();
+				const symbols = [].concat( _getMivaScriptWorkspaceSymbolsByNames( entity, variable, wordLower ), documentSymbols );
 				let symbolDocumentation = '';
 
 				for (let symbol of symbols) {
@@ -1028,11 +1031,109 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 				settings: settings
 			});
 
-			mivaScriptWorkspaceSymbols = await workspaceSymbolProvider.provideSymbols((document, lsk) => {
+			const symbols = await workspaceSymbolProvider.provideSymbols((document, lsk) => {
 				const {symbols} = _mvFindDocumentSymbols(document, lsk);
 
 				return symbols;
 			});
+
+			// The provider returns the same array when nothing changed, so only rebuild the name index when needed
+			if (symbols !== mivaScriptWorkspaceSymbols) {
+				const symbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+
+				for (let symbol of symbols) {
+					const nameLower = symbol?.name?.toLowerCase();
+					const namedSymbols = symbolsByName.get(nameLower);
+
+					if (namedSymbols) {
+						namedSymbols.push(symbol);
+					}
+					else {
+						symbolsByName.set(nameLower, [symbol]);
+					}
+				}
+
+				mivaScriptWorkspaceSymbols = symbols;
+				mivaScriptWorkspaceSymbolsByName = symbolsByName;
+			}
+		}
+
+		return true;
+	}
+
+	function _getMivaScriptWorkspaceSymbolsByNames( ...names: string[] ): SymbolInformationWithDocumentation[] {
+		let symbols: SymbolInformationWithDocumentation[] = [];
+
+		for (let name of new Set(names)) {
+			const namedSymbols = name && mivaScriptWorkspaceSymbolsByName.get(name);
+
+			if (namedSymbols) {
+				symbols = symbols.concat(namedSymbols);
+			}
+		}
+
+		return symbols;
+	}
+
+	function _queryMivaScriptWorkspaceSymbols( query: string, functionsOnly: boolean = false ): SymbolInformation[] {
+		const queryLower = query?.toLowerCase() ?? '';
+
+		// Rank exact matches first, then prefix, substring and in-order character matches (VS Code re-sorts with its own fuzzy matcher)
+		const rankedSymbols: SymbolInformationWithDocumentation[][][] = [[], [], [], []];
+
+		for (let [nameLower, symbols] of mivaScriptWorkspaceSymbolsByName) {
+			let rank: number;
+
+			if (nameLower === queryLower) {
+				rank = 0;
+			}
+			else if (nameLower?.startsWith(queryLower)) {
+				rank = 1;
+			}
+			else if (nameLower?.includes(queryLower)) {
+				rank = 2;
+			}
+			else if (_containsCharactersInOrder(nameLower, queryLower)) {
+				rank = 3;
+			}
+			else {
+				continue;
+			}
+
+			rankedSymbols[rank].push(symbols);
+		}
+
+		// Omit the hover documentation, it isn't part of the LSP response and only inflates the payload
+		const results: SymbolInformation[] = [];
+
+		for (let rank of rankedSymbols) {
+			for (let symbols of rank) {
+				for (let {name, kind, location, containerName} of symbols) {
+					if (functionsOnly && kind !== SymbolKind.Function) {
+						continue;
+					}
+
+					if (results.length >= MAX_WORKSPACE_SYMBOL_RESULTS) {
+						return results;
+					}
+
+					results.push({ name, kind, location, containerName });
+				}
+			}
+		}
+
+		return results;
+	}
+
+	function _containsCharactersInOrder( value: string = '', characters: string ): boolean {
+		let index = 0;
+
+		for (let character of characters) {
+			index = value.indexOf(character, index) + 1;
+
+			if (index === 0) {
+				return false;
+			}
 		}
 
 		return true;
@@ -1061,6 +1162,7 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 		let originalLastAttributeName: string | undefined = undefined;
 		let lastFunctionName: string | undefined = undefined;
 		let lastFunctionParameters: string[] | undefined = undefined;
+		const basename = Utils.basename(URI.parse(document.uri));
 
 		while ( token !== TokenType.EOS ) {
 
@@ -1089,8 +1191,6 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 						);
 
 						if ( (lastTagName === 'mvassign' || lastTagName === 'mvassignarray') && lastAttributeName === 'name' ) {
-							const basename = Utils.basename(URI.parse(document.uri));
-
 							symbols.push({
 								documentation: {
 									kind: 'markdown',
@@ -1387,7 +1487,7 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 			async findWorkspaceSymbols( query: string, settings: Settings ): Promise<SymbolInformationWithDocumentation[]> {
 				await _createMivaScriptWorkspaceSymbols( workspace, settings, true );
 
-				return mivaScriptWorkspaceSymbols;
+				return _queryMivaScriptWorkspaceSymbols( query, settings?.mivaScript?.workspaceSymbols?.functionsOnly );
 			},
 
 			async findDefinition( document: TextDocument, position: Position, settings: Settings ) {
@@ -1401,14 +1501,14 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 				const variable = getVariableAtOffset( line, position.character )?.toLowerCase();
 
 				return [
-					...documentSymbols,
-					...mivaScriptWorkspaceSymbols
+					...documentSymbols
+						.filter(( symbol ) => {
+							const nameLower: string = symbol?.name?.toLowerCase();
+							return nameLower === variable || nameLower === word;
+						}),
+					..._getMivaScriptWorkspaceSymbolsByNames( variable, word )
 				]
-					?.filter(( symbol ) => {
-						const nameLower: string = symbol?.name?.toLowerCase();
-						return nameLower === variable || nameLower === word;
-					})
-					?.map( symbol => symbol.location );
+					.map( symbol => symbol.location );
 
 			},
 
@@ -1590,8 +1690,8 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 					}
 
 					// Variable / Symbol Hover Documentation
-					const symbols = [].concat( mivaScriptWorkspaceSymbols, documentSymbols );
 					const variable = getVariableAtOffset( line, position.character )?.toLowerCase();
+					const symbols = [].concat( _getMivaScriptWorkspaceSymbolsByNames( variable, wordLower ), documentSymbols );
 					let symbolDocumentation = '';
 
 					for (let symbol of symbols) {

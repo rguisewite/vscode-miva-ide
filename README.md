@@ -61,6 +61,7 @@ Miva IDE contributes the following settings:
 | MVT.lint.showErrorForTksl | true | Show an error for the `toolkit` item's `tksl` param. |
 | mivaScript.mivaScriptCompiler.enable | true | Enables automatic error reporting for Miva Script files using the Miva Script Compiler. Download the compiler [here](https://www.miva.com/support/downloads). |
 | mivaScript.mivaScriptCompiler.disableLSK | true | Disable automatic error reporting for files contained within the configured LSK path. |
+| mivaScript.workspaceSymbols.functionsOnly | false | Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names, excluding `MvASSIGN` and `MvASSIGNARRAY` variables. |
 
 ## Integrations
 

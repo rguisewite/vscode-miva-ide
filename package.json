@@ -143,6 +143,11 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Disables documentation popover when hovering."
+				},
+				"mivaScript.workspaceSymbols.functionsOnly": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names, excluding `MvASSIGN` and `MvASSIGNARRAY` variables."
 				}
 			}
 		},
