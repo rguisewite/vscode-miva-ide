@@ -302,6 +302,22 @@ export function activate (connection: Connection, {workspaceSymbolProvider, miva
 		}, [], `Error while computing definitions for`, token );
 	});
 
+	// Sent by the client's definition provider for JavaScript files, which this server does not otherwise sync
+	connection.onRequest('miva/javaScriptDefinition', ( params: { uri: string, word: string, text: string }, token ) => {
+		return runSafeAsync(async () => {
+			const features = languages['mv'];
+
+			const document = TextDocument.create('file://null', 'mv', 1, '');
+			const settings = await getDocumentSettings(document);
+
+			if (features && features.findJavaScriptDefinition) {
+				return features.findJavaScriptDefinition(params.uri, params.word, params.text, settings);
+			}
+
+			return [];
+		}, [], `Error while computing JavaScript definitions for ${ params?.uri }`, token );
+	});
+
 	connection.onDefinition(( definitionParams, token ) => {
 		return runSafeAsync(async () => {
 

@@ -2,7 +2,9 @@ import {
 	ExtensionContext,
 	StatusBarAlignment,
 	StatusBarItem,
-	window
+	languages,
+	window,
+	workspace
 } from 'vscode';
 import {
 	LanguageClient,
@@ -33,6 +35,25 @@ export function activate( context: ExtensionContext ) {
 	};
 
 	const clientOptions = getClientOptions();
+
+	// The built-in JavaScript extension already lists symbols for open .js files, so drop ours for those to avoid duplicates
+	clientOptions.middleware = {
+		...clientOptions.middleware,
+		async provideWorkspaceSymbols( query, token, next ) {
+			const symbols = await next( query, token );
+			const openJavaScriptUris = new Set(
+				workspace.textDocuments
+					.filter( document => document.languageId === 'javascript' )
+					.map( document => document.uri.toString() )
+			);
+
+			if (!symbols || openJavaScriptUris.size === 0) {
+				return symbols;
+			}
+
+			return symbols.filter( symbol => !openJavaScriptUris.has( symbol.location.uri.toString() ) );
+		}
+	};
 
 	// Create the language client and start the client.
 	client = new LanguageClient( 'miva', 'Miva IDE Language Server', serverOptions, clientOptions );
@@ -66,6 +87,31 @@ export function activate( context: ExtensionContext ) {
 	});
 
 	context.subscriptions.push( mmtListener );
+
+	// JavaScript files aren't synced with the server, so definitions are requested with the editor's current text
+	const javaScriptDefinitionProvider = languages.registerDefinitionProvider({ language: 'javascript' }, {
+		async provideDefinition( document, position, token ) {
+			if (!workspace.getConfiguration( 'mivaScript', document.uri ).get<boolean>( 'workspaceSymbols.includeJavaScript' ) || !client.isRunning()) {
+				return undefined;
+			}
+
+			const wordRange = document.getWordRangeAtPosition( position );
+
+			if (!wordRange) {
+				return undefined;
+			}
+
+			const result = await client.sendRequest( 'miva/javaScriptDefinition', {
+				uri: document.uri.toString(),
+				word: document.getText( wordRange ),
+				text: document.getText()
+			}, token );
+
+			return client.protocol2CodeConverter.asDefinitionResult( result as any, token );
+		}
+	});
+
+	context.subscriptions.push( javaScriptDefinitionProvider );
 
 	client.start();
 

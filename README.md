@@ -61,7 +61,8 @@ Miva IDE contributes the following settings:
 | MVT.lint.showErrorForTksl | true | Show an error for the `toolkit` item's `tksl` param. |
 | mivaScript.mivaScriptCompiler.enable | true | Enables automatic error reporting for Miva Script files using the Miva Script Compiler. Download the compiler [here](https://www.miva.com/support/downloads). |
 | mivaScript.mivaScriptCompiler.disableLSK | true | Disable automatic error reporting for files contained within the configured LSK path. |
-| mivaScript.workspaceSymbols.functionsOnly | false | Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names, excluding `MvASSIGN` and `MvASSIGNARRAY` variables. |
+| mivaScript.workspaceSymbols.functionsOnly | false | Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names (and JavaScript symbols, when `mivaScript.workspaceSymbols.includeJavaScript` is enabled), excluding `MvASSIGN` and `MvASSIGNARRAY` variables. |
+| mivaScript.workspaceSymbols.includeJavaScript | false | Include JavaScript function, method and class names from `.js` files in workspace symbol search (`Go to Symbol in Workspace`), and use them for Go to Definition in JavaScript files. Skips `.min.js` files and `node_modules` folders. Results for `.js` files open in the editor are left to VS Code's built-in JavaScript support to avoid duplicates. |
 
 ## Integrations
 

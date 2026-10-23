@@ -147,7 +147,12 @@
 				"mivaScript.workspaceSymbols.functionsOnly": {
 					"type": "boolean",
 					"default": false,
-					"markdownDescription": "Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names, excluding `MvASSIGN` and `MvASSIGNARRAY` variables."
+					"markdownDescription": "Limit workspace symbol search (`Go to Symbol in Workspace`) to `MvFUNCTION` names (and JavaScript symbols, when `#mivaScript.workspaceSymbols.includeJavaScript#` is enabled), excluding `MvASSIGN` and `MvASSIGNARRAY` variables."
+				},
+				"mivaScript.workspaceSymbols.includeJavaScript": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Include JavaScript function, method and class names from `.js` files in workspace symbol search (`Go to Symbol in Workspace`), and use them for Go to Definition in JavaScript files. Skips `.min.js` files and `node_modules` folders. Results for `.js` files open in the editor are left to VS Code's built-in JavaScript support to avoid duplicates."
 				}
 			}
 		},

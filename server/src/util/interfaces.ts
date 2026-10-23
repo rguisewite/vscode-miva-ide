@@ -69,6 +69,8 @@ export interface LanguageFeatures {
 
 	findWorkspaceSymbols?: ( query: string, settings: Settings ) => Promise<SymbolInformation[]>;
 
+	findJavaScriptDefinition?: ( uri: string, word: string, text: string, settings: Settings ) => Promise<Definition>;
+
 }
 
 export interface MvLanguageModel {
@@ -258,6 +260,7 @@ export interface GlobalVariableData extends BaseGlobalVariableData {
 
 export interface SymbolInformationWithDocumentation extends SymbolInformation {
 	documentation?: MarkupContent;
+	languageId?: string;
 };
 
 export interface BaseOperatorData {

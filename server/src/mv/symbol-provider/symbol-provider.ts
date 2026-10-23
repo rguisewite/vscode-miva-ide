@@ -48,10 +48,12 @@ export class WorkspaceSymbolProvider {
 			encoding: 'utf-8'
 		});
 
-		return TextDocument.create(path, 'mv', 1, fileContents);
+		return TextDocument.create(path, path.endsWith('.js') ? 'javascript' : 'mv', 1, fileContents);
 	}
 
 	private async gatherMivaScriptFoldersFromWorkspace (): Promise<Folder[]> {
+		const includeJavaScript = this.workspace.settings?.mivaScript?.workspaceSymbols?.includeJavaScript === true;
+
 		return Promise.all(this.workspace.folders.map(async (workspaceFolder) => {
 			const workspaceFolderPath = uriToFsPath(workspaceFolder.uri);
 
@@ -78,8 +80,11 @@ export class WorkspaceSymbolProvider {
 				};
 			}
 
+			const filePaths = await walk(workspaceFolderPath, includeJavaScript ? ['.mv', '.js'] : '.mv', IGNORED_DIRECTORY_NAMES);
+
 			return {
-				filePaths: (await walk(workspaceFolderPath, '.mv', IGNORED_DIRECTORY_NAMES)),
+				// Minified files are generated output and would only add duplicate or mangled names
+				filePaths: includeJavaScript ? filePaths.filter(filePath => !filePath.endsWith('.min.js')) : filePaths,
 				lsk: lskDetected
 			};
 		}));
@@ -150,7 +155,7 @@ export class WorkspaceSymbolProvider {
 	}
 
 	/**
-	 * Returns the symbols for every .mv file in the workspace. Unchanged files are served from cache, and calls made
+	 * Returns the symbols for every .mv file in the workspace (and .js file when enabled). Unchanged files are served from cache, and calls made
 	 * while a scan is already running share its result. The same array is returned when nothing has changed.
 	 */
 	provideSymbols (iterator: ( document: TextDocument, lsk: boolean ) => SymbolInformationWithDocumentation[]): Promise<SymbolInformationWithDocumentation[]> {

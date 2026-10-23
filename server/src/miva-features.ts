@@ -77,6 +77,7 @@ import {
 	ValidationDataType,
 	Workspace
 } from './util/interfaces';
+import { findJavaScriptSymbols, getJavaScriptSymbolLookupName } from './util/javascript-symbols';
 import { getLanguageModelCache } from './util/language-model-cache';
 import patterns from './util/patterns';
 
@@ -117,6 +118,8 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 	const MAX_WORKSPACE_SYMBOL_RESULTS = 1000;
 	let mivaScriptWorkspaceSymbols: SymbolInformationWithDocumentation[] = [];
 	let mivaScriptWorkspaceSymbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+	let javaScriptWorkspaceSymbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+	let javaScriptWorkspaceSymbolsByLookupName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
 	let mivaScriptWorkspaceSymbolsLoading: boolean = false;
 
 	// Helper function for "variable" completion target list
@@ -1032,33 +1035,51 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 			});
 
 			const symbols = await workspaceSymbolProvider.provideSymbols((document, lsk) => {
+				if (document.languageId === 'javascript') {
+					return findJavaScriptSymbols(document, URI.file(document.uri).toString());
+				}
+
 				const {symbols} = _mvFindDocumentSymbols(document, lsk);
 
 				return symbols;
 			});
 
-			// The provider returns the same array when nothing changed, so only rebuild the name index when needed
+			// The provider returns the same array when nothing changed, so only rebuild the name indexes when needed
 			if (symbols !== mivaScriptWorkspaceSymbols) {
-				const symbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+				const mivaScriptSymbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+				const javaScriptSymbolsByName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
+				const javaScriptSymbolsByLookupName: Map<string, SymbolInformationWithDocumentation[]> = new Map();
 
 				for (let symbol of symbols) {
-					const nameLower = symbol?.name?.toLowerCase();
-					const namedSymbols = symbolsByName.get(nameLower);
-
-					if (namedSymbols) {
-						namedSymbols.push(symbol);
+					// JavaScript is case-sensitive and kept apart so it never shows up in Miva Script definitions or hovers
+					if (symbol.languageId === 'javascript') {
+						_addSymbolToNameMap(javaScriptSymbolsByName, symbol.name.toLowerCase(), symbol);
+						_addSymbolToNameMap(javaScriptSymbolsByLookupName, getJavaScriptSymbolLookupName(symbol.name), symbol);
 					}
 					else {
-						symbolsByName.set(nameLower, [symbol]);
+						_addSymbolToNameMap(mivaScriptSymbolsByName, symbol?.name?.toLowerCase(), symbol);
 					}
 				}
 
 				mivaScriptWorkspaceSymbols = symbols;
-				mivaScriptWorkspaceSymbolsByName = symbolsByName;
+				mivaScriptWorkspaceSymbolsByName = mivaScriptSymbolsByName;
+				javaScriptWorkspaceSymbolsByName = javaScriptSymbolsByName;
+				javaScriptWorkspaceSymbolsByLookupName = javaScriptSymbolsByLookupName;
 			}
 		}
 
 		return true;
+	}
+
+	function _addSymbolToNameMap( map: Map<string, SymbolInformationWithDocumentation[]>, name: string, symbol: SymbolInformationWithDocumentation ): void {
+		const namedSymbols = map.get(name);
+
+		if (namedSymbols) {
+			namedSymbols.push(symbol);
+		}
+		else {
+			map.set(name, [symbol]);
+		}
 	}
 
 	function _getMivaScriptWorkspaceSymbolsByNames( ...names: string[] ): SymbolInformationWithDocumentation[] {
@@ -1081,7 +1102,7 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 		// Rank exact matches first, then prefix, substring and in-order character matches (VS Code re-sorts with its own fuzzy matcher)
 		const rankedSymbols: SymbolInformationWithDocumentation[][][] = [[], [], [], []];
 
-		for (let [nameLower, symbols] of mivaScriptWorkspaceSymbolsByName) {
+		for (let [nameLower, symbols] of [...mivaScriptWorkspaceSymbolsByName, ...javaScriptWorkspaceSymbolsByName]) {
 			let rank: number;
 
 			if (nameLower === queryLower) {
@@ -1109,7 +1130,7 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 		for (let rank of rankedSymbols) {
 			for (let symbols of rank) {
 				for (let {name, kind, location, containerName} of symbols) {
-					if (functionsOnly && kind !== SymbolKind.Function) {
+					if (functionsOnly && kind === SymbolKind.Variable) {
 						continue;
 					}
 
@@ -1488,6 +1509,23 @@ export function activateFeatures({workspaceSymbolProvider, mivaScriptCompilerPro
 				await _createMivaScriptWorkspaceSymbols( workspace, settings, true );
 
 				return _queryMivaScriptWorkspaceSymbols( query, settings?.mivaScript?.workspaceSymbols?.functionsOnly );
+			},
+
+			async findJavaScriptDefinition( uri: string, word: string, text: string, settings: Settings ): Promise<Location[]> {
+				if (!settings?.mivaScript?.workspaceSymbols?.includeJavaScript || !word) {
+					return [];
+				}
+
+				await _createMivaScriptWorkspaceSymbols(workspace, settings);
+
+				// Use the editor's text for the current file so unsaved changes are found, and skip its indexed copy from disk
+				const documentUri = URI.parse(uri).toString();
+				const documentSymbols = findJavaScriptSymbols(TextDocument.create(uri, 'javascript', 1, text ?? ''))
+					.filter(symbol => getJavaScriptSymbolLookupName(symbol.name) === word);
+				const workspaceSymbols = (javaScriptWorkspaceSymbolsByLookupName.get(word) ?? [])
+					.filter(symbol => URI.parse(symbol.location.uri).toString() !== documentUri);
+
+				return [...documentSymbols, ...workspaceSymbols].map(symbol => symbol.location);
 			},
 
 			async findDefinition( document: TextDocument, position: Position, settings: Settings ) {
