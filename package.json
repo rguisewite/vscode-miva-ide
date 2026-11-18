@@ -2,7 +2,7 @@
 	"name": "vscode-miva-ide",
 	"displayName": "Miva IDE",
 	"description": "Syntax highlighting, snippets and tools for building websites with Miva.",
-	"version": "1.39.0",
+	"version": "1.39.1",
 	"engines": {
 		"vscode": "^1.77.0",
 		"node": ">=16"
@@ -253,6 +253,13 @@
 					"text.html.mv"
 				],
 				"path": "./syntaxes/mv/mv.injection.tmLanguage.json"
+			},
+			{
+				"scopeName": "source.mv.attribute-injection",
+				"injectTo": [
+					"text.html.mv"
+				],
+				"path": "./syntaxes/mv/mv.attribute.injection.tmLanguage.json"
 			},
 			{
 				"language": "mvt-markdown-injection",

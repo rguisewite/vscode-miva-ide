@@ -1,6 +1,13 @@
 # Miva IDE CHANGELOG
 
-## v1.39.0 (latest)
+## v1.39.1 (latest)
+
+* Fixed Miva Script (`.mv`) syntax highlighting breaking for the rest of the file when a `<script>` block contained a `{` object literal with a `}` inside it, such as a template literal `${...}` substitution.
+	* Miva Script `{ }` expressions are now only highlighted inside tag attribute values, not in `<script>`/`<style>` bodies or plain text.
+* Restored Miva Script `{ }` expression highlighting inside quoted HTML tag attributes, e.g. `<a href="{ encodeentities( l.url ) }">`.
+	* Only applies when the whole double-quoted value is the expression, with `{` and `}` directly against the quotes. Values like `"prefix-{ l.id }"`, `" { l.id } "` and `'{ l.id }'` are left as plain strings.
+
+## v1.39.0
 
 * Improved performance of Miva Script symbol lookup.
 	* `Go to Symbol in Workspace` no longer re-reads every `.mv` file on each keystroke. Only new or changed files are parsed, and results are filtered by the search text and capped at 1000.

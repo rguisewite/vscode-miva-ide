@@ -6,7 +6,6 @@ injectionSelector: 'L:text.html.mv -comment.block.mv -source.mv -string'
 
 patterns:
   - include: '#comments'
-  - include: '#expression'
   - include: '#text-tags'
 
 repository:
@@ -240,6 +239,8 @@ repository:
             end: '(?<=\})\s*(")'
             endCaptures:
               0: {name: punctuation.definition.string.end.mv string.quoted.double.mv}
+            patterns:
+              - include: '#expression'
 
           # Quoted strings
           - begin: '"'

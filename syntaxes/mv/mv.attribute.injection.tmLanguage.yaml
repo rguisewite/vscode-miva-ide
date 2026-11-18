@@ -1,0 +1,35 @@
+%YAML 1.2
+---
+# Highlights Miva Script `{ ... }` expressions inside HTML tag attribute values,
+# e.g. <a href="{ encodeentities( l.url ) }">.
+#
+# Miva Script only evaluates an attribute value when the whole double-quoted
+# value is the expression: `{` must immediately follow the opening `"` and `}`
+# must immediately precede the closing `"`. These stay plain strings:
+#   href="prefix-{ l.id }"   href="{ l.id }-suffix"
+#   href=" { l.url } "       href='{ l.url }'
+#
+# This is kept separate from source.mv.injection because that grammar excludes
+# `string` scopes (so `{` inside JavaScript/CSS strings is left alone), and HTML
+# attribute values are scoped as strings. Limiting this one to `meta.attribute`
+# keeps it out of <script> and <style> bodies, where `{` is JavaScript/CSS.
+name: Miva Script (Attribute Expression Injection)
+scopeName: source.mv.attribute-injection
+injectionSelector: 'L:text.html.mv meta.attribute string.quoted.double -comment -source.mv'
+
+patterns:
+  - include: '#attribute-expression'
+
+repository:
+
+  # attr="{ ... }"
+  attribute-expression:
+    begin: '(?<==")(\{)(?=[^"]*\}")'
+    beginCaptures:
+      1: {name: punctuation.definition.expression.begin.mv}
+    end: '\}'
+    endCaptures:
+      0: {name: punctuation.definition.expression.end.mv}
+    name: text.expr.mv source.mv
+    patterns:
+      - include: 'source.mv.injection#source-mv'

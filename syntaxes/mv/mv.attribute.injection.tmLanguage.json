@@ -1,0 +1,32 @@
+{
+  "name": "Miva Script (Attribute Expression Injection)",
+  "scopeName": "source.mv.attribute-injection",
+  "injectionSelector": "L:text.html.mv meta.attribute string.quoted.double -comment -source.mv",
+  "patterns": [
+    {
+      "include": "#attribute-expression"
+    }
+  ],
+  "repository": {
+    "attribute-expression": {
+      "begin": "(?<==\")(\\{)(?=[^\"]*\\}\")",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.expression.begin.mv"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.expression.end.mv"
+        }
+      },
+      "name": "text.expr.mv source.mv",
+      "patterns": [
+        {
+          "include": "source.mv.injection#source-mv"
+        }
+      ]
+    }
+  }
+}
